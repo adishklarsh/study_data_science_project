@@ -1,0 +1,131 @@
+# Assignment for Reproducible Research Coursera Course
+
+## Downloading and Organizing the Data
+
+load libraries
+
+```{r, message = FALSE}
+library(knitr)
+library(plyr)
+library(dplyr)
+```
+
+set global options for R markdown:
+
+```{r setoptions, echo=TRUE}
+opts_chunk$set(echo = TRUE)
+```
+
+download and load the data:
+
+```{r download, cache=TRUE}
+tmpdir = tempdir()
+url = 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip'
+file = basename(url)
+download.file(url, file)
+unzip(file, exdir = tmpdir)
+file = list.files(tempdir(), pattern = "*.csv", full.names = T)
+data = read.csv(file)
+unlink(tmpdir)
+```
+
+process the data: mutate date to date form
+
+```{r clean}
+data = mutate(data, date = as.Date(date, "%Y-%m-%d"))
+```
+
+## Summary Statistics and Exploratory Plots
+
+calculate the total number of steps taken per day
+
+```{r}
+sumStepsByDate = ddply(data, .(date), summarise, sum=sum(steps, na.rm = TRUE))
+```
+
+**histogram** of the total number of steps taken each day
+including the mean and median of the total number of steps taken per day:
+
+```{r stepsHist}
+hist(sumStepsByDate$sum, col = "azure3", breaks = 10, main = "Histogram of the Total Number of Steps Taken Each Eay", xlab = "Total Number of Steps Taken")
+meanS = round(mean(sumStepsByDate$sum))
+medianS = round(median(sumStepsByDate$sum))
+abline(v=meanS, col = "black", lwd = 3)
+abline(v=medianS, col = "azure4", lwd = 3)
+legend("topright", pch = "|", col = c("black", "azure4"), legend = c(paste0("Mean = ",meanS), paste0("Median = ",medianS)), pt.cex = 2)
+```
+
+a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+```{r timeseries}
+meanStepsByInterval = ddply(data, .(interval), summarise, average = mean(steps, na.rm = TRUE))
+plot(meanStepsByInterval, type = "l", xlab = "5-minute interval", ylab = "average steps taken", main = "Number of steps taken in each interval averaged across all days", xaxt = "n")
+maxInterval = data$interval[which.max(meanStepsByInterval$average)]
+abline(v=maxInterval, col = "azure4", lwd = 3)
+legend("topright", pch = "|", col = c("azure4"), legend = paste0("Max = ",maxInterval), pt.cex = 2)
+xTicks = seq(0, data$interval[length(data$interval)]+5, 500)
+newXTicks = c(xTicks,maxInterval)
+newXTicks = newXTicks[order(newXTicks)]
+axis(1, round(newXTicks))
+
+```
+
+## Missing values
+
+```{r calcMissing}
+sumNA = sum(!complete.cases(data))
+percentNA = round(sumNA/dim(data)[1],2)*100
+```
+
+There are `r sumNA` rows with missing values which is `r percentNA`% of the rows.
+
+Fill missing values by 5-minute interval average
+
+```{r fillMissing}
+repData = rep(meanStepsByInterval$average,length(unique(data$date)))
+dataFilledNA = data
+dataFilledNA$steps[is.na(data$steps)] = repData[is.na(data$steps)]
+```
+
+histogram of the total number of steps taken each day with filled missing values
+
+```{r stepsHistFilledNA}
+sumStepsByDate = ddply(dataFilledNA, .(date), summarise, sum=sum(steps, na.rm = TRUE))
+hist(sumStepsByDate$sum, col = "azure3", breaks = 10, main = "Histogram of the Total Number of Steps Taken Each Eay", xlab = "Total Number of Steps Taken")
+meanS = round(mean(sumStepsByDate$sum))
+medianS = round(median(sumStepsByDate$sum))
+abline(v=meanS, col = "black", lwd = 3)
+abline(v=medianS, col = "azure4", lwd = 3)
+legend("topright", pch = "|", col = c("black", "azure4"), legend = c(paste0("Mean = ",meanS), paste0("Median = ",medianS)), pt.cex = 2)
+```
+
+Do these values differ from the estimates from the first part of the assignment? 
+    Yes. They are higher.
+
+What is the impact of imputing missing data on the estimates of the total daily number of steps?.
+    
+    Missing data contributed 0 to the sum thus imputing missing data by any (positive) value, increases the sum of the total daily number of steps.
+
+## Differences in Activity Patterns between Weekdays and Weekends?
+
+create a factor variable in the data with two levels indicating whether a date is a weekday or weekend
+
+```{r}
+dataFilledNA$dateType = weekdays(dataFilledNA$date) %in% c("Saturday","Sunday")
+dataFilledNA$dateType = factor(dataFilledNA$dateType, labels = c("weekday", "weekend"))
+```
+
+
+    Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). See the README file in the GitHub repository to see an example of what this plot should look like using simulated data.
+    
+a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+```{r timeseriesDayType}
+meanStepsByIntervalWeekday = ddply(dataFilledNA[dataFilledNA$dateType == "weekday",], .(interval), summarise, average = mean(steps, na.rm = TRUE))
+meanStepsByIntervalWeekend = ddply(dataFilledNA[dataFilledNA$dateType == "weekend",], .(interval), summarise, average = mean(steps, na.rm = TRUE))
+
+plot(meanStepsByIntervalWeekday, type = "l", lwd = 2, xlab = "5-minute interval", ylab = "average steps taken", col = "brown", main = "Number of steps taken in each interval averaged across all \n weekdays or weekends")
+lines(meanStepsByIntervalWeekend, col = "darkgreen", lwd = 2)
+legend("topright", lty = 1, col = c("brown", "darkgreen"), legend = levels(dataFilledNA$dateType), lwd = 2)
+
+```
