@@ -1,0 +1,54 @@
+# My first R Markdown file
+
+This is my first R markdown file.
+
+
+```{r setoptions, echo=FALSE}
+library(knitr)
+opts_chunk$set(echo = FALSE, results = "hide")
+```
+
+Lets load some data:
+
+```{r}
+library(datasets)
+summary(airquality)
+```
+
+Lets make a pairs plot of the data:
+
+```{r}
+pairs(airquality)
+```
+
+Here's a regression model of ozone on wind, solar radiation, and temprature
+
+```{r}
+library(stats)
+fit = lm(Ozone ~ Wind + Solar.R + Temp, data = airquality)
+```
+
+
+Here is a table of regression coefficients
+```{r showtable, results="asis"}
+library(xtable)
+xt = xtable(summary(fit))
+print(xt, type = "html")
+```
+
+Here's an unordered list:
+
+* first element
+
+* second element
+
+Lets simulate some data
+```{r simulatedata, echo=TRUE}
+x = rnorm(100); y = x+rnorm(100, sd=0.5)
+```
+
+Here is a scatterplot of the data
+```{r scatterplot, fig.height = 4}
+par(mar = c(5,4,1,1), las=1)
+plot(x,y,main = "My Simulated Data")
+```

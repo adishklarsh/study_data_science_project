@@ -1,0 +1,85 @@
+# Assignment 2 for Reproducible Research Coursera Course
+
+# Analysis of US storm data and effects on health and economics
+
+## Synopsis
+We looked at the mean harm to health and economic damages per event where harm to health is measured by the sum of fatalities and injuries and economic damages is measured by the sum of proerty and crop damages. We show the top 20 events causing maximal harm to health / economic damages.
+
+Questions to Answer:
+
+1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+2. Across the United States, which types of events have the greatest economic consequences?
+
+
+load libraries
+
+```{r, message = FALSE}
+library(knitr)
+library(plyr)
+library(dplyr)
+library(stringi)
+library(stringr)
+```
+
+set global options for R markdown:
+
+```{r setoptions, echo=TRUE}
+opts_chunk$set(echo = TRUE)
+```
+
+## Data Processing
+
+download and load the data:
+
+```{r download, cache=TRUE}
+if(!file.exists("./data")){dir.create("./data")}
+url = 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
+download.file(url,destfile="./data/storm.csv",mode="wb")
+stormData = read.csv("./data/storm.csv", stringsAsFactors = FALSE)
+```
+
+process the data: mutate date to date form, format event type string to title (to join similar events written differently), use factors for states and event types, and filter out unused columns
+
+```{r clean}
+stormData$date = strptime(paste(substr(stormData$BGN_DATE,1,9), stormData$BGN_TIME), "%m/%d/%Y %H%M")
+ 
+stormData$EVTYPE = stri_trans_totitle(str_trim(stormData$EVTYPE))
+
+stormData = mutate(stormData, STATE = factor(STATE), eventType = factor(EVTYPE))
+stormData = select(stormData, state = STATE, date, eventType, length = LENGTH, width = WIDTH, state = STATE, fatal = FATALITIES, injured = INJURIES, propertyDamage = PROPDMG, propertyDamageExp = PROPDMGEXP, cropDamage = CROPDMG, cropDamageExp = CROPDMGEXP)
+```
+
+## Analysis
+
+calculate the mean health and economic damages by taking the mean of similar events across all states and dates and summing on different damage types (such as fatalities and injuries)
+
+```{r}
+
+damagesByEvent = split(stormData[, c("fatal", "injured", "propertyDamage", "cropDamage")], stormData$eventType)
+meanDamagesByEvent = t(sapply(damagesByEvent, colMeans))
+
+# change column names to header style for plotting
+colnames(meanDamagesByEvent) = stri_trans_totitle(gsub('([[:upper:]])', ' \\1', colnames(meanDamagesByEvent)))
+
+# separate fatal and injured from propery and crop damage and order by sum
+
+meanHealthByEvent = rowSums(meanDamagesByEvent[,c("Fatal", "Injured")])
+orderedMeanHealthByEvent = meanDamagesByEvent[order(meanHealthByEvent),c("Fatal", "Injured")]
+
+meanEconomicByEvent = rowSums(meanDamagesByEvent[,c("Property Damage", "Crop Damage")])
+orderedMeanEconomicByEvent = meanDamagesByEvent[order(meanEconomicByEvent),c("Property Damage", "Crop Damage")]
+
+```
+
+## Results
+
+plot the top 20 events causing maximum mean harm to health / economics:
+
+```{r plotbarall}
+par(mfrow = c(1,2), mar=c(6,10,2,2), ps = 8)
+barplot(t(tail(orderedMeanHealthByEvent,30)), horiz = TRUE, las = 1, beside = FALSE, legend.text = TRUE, args.legend = list(x=-10, y=-2))
+barplot(t(tail(orderedMeanEconomicByEvent,30)), horiz = TRUE, las = 1, beside = FALSE, legend.text = TRUE, args.legend = list(x=-100, y=-2))
+title("Top 20 Events Causing Maximum Mean Harm to Health / Economics")
+```
+
